@@ -1,0 +1,40 @@
+services:
+  synkra-os:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: synkra-os:latest
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      - synkra_pb_data:/pb/pb_data
+    environment:
+      # Integration boundaries — leave unset in dev; the app degrades to
+      # explicit 501 responses on routes that need them instead of faking
+      # success. See .env.example for the full list and what each gates.
+      - PAYSTACK_SECRET_KEY=${PAYSTACK_SECRET_KEY:-}
+      - FLOW_API_BASE=${FLOW_API_BASE:-}
+      - FLOW_API_KEY=${FLOW_API_KEY:-}
+      - COOLIFY_API_BASE=${COOLIFY_API_BASE:-}
+      - COOLIFY_API_TOKEN=${COOLIFY_API_TOKEN:-}
+      - CHAT_API_BASE=${CHAT_API_BASE:-}
+      - CHAT_API_KEY=${CHAT_API_KEY:-}
+      - ZOHO_BOOKS_API_KEY=${ZOHO_BOOKS_API_KEY:-}
+      - AGENCY_STANDARD_PRICING_CEILING_CENTS=${AGENCY_STANDARD_PRICING_CEILING_CENTS:-}
+      - AI_WORKER_API_KEY=${AI_WORKER_API_KEY:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_ADDRESS=${RESEND_FROM_ADDRESS:-}
+      - RESEND_WEBHOOK_SECRET=${RESEND_WEBHOOK_SECRET:-}
+      - ACQUISITION_WORKER_API_KEY=${ACQUISITION_WORKER_API_KEY:-}
+      - AGENCY_PLATFORM_PB_BASE_URL=${AGENCY_PLATFORM_PB_BASE_URL:-}
+      - AGENCY_PLATFORM_PB_TOKEN=${AGENCY_PLATFORM_PB_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  synkra_pb_data:
