@@ -1,3 +1,5 @@
+> **SUPERSEDED** by `SYNKRA-ARCHITECTURE.md` at this repo's root. Kept for history.
+
 # Synkra Agency Platform — Technical Architecture & Handover
 
 **Purpose of this document:** the shared contract for everyone building
