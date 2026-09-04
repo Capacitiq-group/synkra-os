@@ -25,23 +25,6 @@ migrate((app) => {
   // ARCHITECTURE.md §3. Field lists are copied verbatim from that doc.
   // =====================================================================
 
-  const agencyClientUsers = new Collection({
-    type: "auth",
-    name: "agency_client_users",
-    fields: [
-      { name: "agency_client_id", type: "relation", required: true, maxSelect: 1 }, // set below once `clients` exists
-      { name: "role", type: "select", required: true, maxSelect: 1, values: ["owner"] },
-      { name: "invited_at", type: "date" },
-      { name: "invite_accepted_at", type: "date" },
-    ],
-    listRule: "id = @request.auth.id",
-    viewRule: "id = @request.auth.id",
-    createRule: null, // accept-invite flow only, via pb_hooks in that repo
-    updateRule: "id = @request.auth.id",
-    deleteRule: null,
-  });
-  app.save(agencyClientUsers);
-
   const clients = new Collection({
     type: "base",
     name: "clients",
@@ -70,8 +53,21 @@ migrate((app) => {
   });
   app.save(clients);
 
-  // Now that `clients` exists, point agency_client_users.agency_client_id at it.
-  agencyClientUsers.fields.getByName("agency_client_id").collectionId = clients.id;
+  const agencyClientUsers = new Collection({
+    type: "auth",
+    name: "agency_client_users",
+    fields: [
+      { name: "agency_client_id", type: "relation", required: true, collectionId: clients.id, maxSelect: 1 },
+      { name: "role", type: "select", required: true, maxSelect: 1, values: ["owner"] },
+      { name: "invited_at", type: "date" },
+      { name: "invite_accepted_at", type: "date" },
+    ],
+    listRule: "id = @request.auth.id",
+    viewRule: "id = @request.auth.id",
+    createRule: null, // accept-invite flow only, via pb_hooks in that repo
+    updateRule: "id = @request.auth.id",
+    deleteRule: null,
+  });
   app.save(agencyClientUsers);
 
   const agencyClientServices = new Collection({
