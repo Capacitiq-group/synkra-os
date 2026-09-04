@@ -27,7 +27,7 @@ function getPricingCeilingCents() {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-onRecordUpdateRequest("agency_leads").bindFunc((e) => {
+onRecordUpdateRequest((e) => {
   const oldStage = e.record.original().get("stage");
   const newStage = e.record.get("stage");
   const movingForward = STAGE_ORDER.indexOf(newStage) > STAGE_ORDER.indexOf(oldStage);
@@ -40,7 +40,7 @@ onRecordUpdateRequest("agency_leads").bindFunc((e) => {
     }
     const invoice = findOrNotFound(e.app, "invoices", invoiceId, "Invoice");
     if (invoice.get("status") !== "paid") {
-      throw new ApiError(422, `Cannot move into "${newStage}": linked invoice is "${invoice.get("status")}", not paid. This transition is blocked by policy (NO PAYMENT = NO ONBOARDING), not by a UI restriction — it cannot be bypassed from the client.`);
+      throw new ApiError(422, `Cannot move into "${newStage}": linked invoice is "${invoice.get("status")}", not paid. This transition is blocked by policy (NO PAYMENT = NO ONBOARDING), not by a U[...]
     }
   }
 
@@ -64,7 +64,7 @@ onRecordUpdateRequest("agency_leads").bindFunc((e) => {
       e.app.save(stored);
       throw new ApiError(
         422,
-        `This quote ($${(quotedAmount / 100).toLocaleString()}) exceeds the standard pricing ceiling and requires manual review before proceeding. Set manual_review_cleared_by (and manual_review_notes) first — this cannot be bypassed by changing the stage directly.`
+        `This quote ($${(quotedAmount / 100).toLocaleString()}) exceeds the standard pricing ceiling and requires manual review before proceeding. Set manual_review_cleared_by (and manual_review_n[...]
       );
     }
   }
@@ -131,4 +131,4 @@ onRecordUpdateRequest("agency_leads").bindFunc((e) => {
       });
     }
   }
-});
+}, "agency_leads");
