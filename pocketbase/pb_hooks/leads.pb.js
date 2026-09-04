@@ -1,6 +1,6 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-onRecordUpdateRequest("leads").bindFunc((e) => {
+onRecordUpdateRequest((e) => {
   const oldStatus = e.record.original().get("status");
   const newStatus = e.record.get("status");
 
@@ -32,7 +32,7 @@ onRecordUpdateRequest("leads").bindFunc((e) => {
       e.app.save(activity);
     }
   }
-});
+}, "leads");
 
 // Completing a follow-up as "email" links it to an email that was already
 // sent via /api/email/send — this route never sends anything itself. This
