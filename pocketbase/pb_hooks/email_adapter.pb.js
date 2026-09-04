@@ -4,26 +4,23 @@
 // Nothing else in the app should hold an API key or build a Resend
 // request; other modules call /api/email/send and read email_events.
 
-// Sends a transactional email via Resend and records the attempt as an
-// email_events row regardless of outcome. Requires email.manage — sending
-// email on a customer's behalf is not a passive "view" action.
-routerAdd("POST", "/api/email/send", (e) => {
-  const employee = requirePermission(e, "email.manage");
-  const data = e.requestInfo().body;
-  const to = data && data.to;
-  const subject = data && data.subject;
-  const html = data && data.html;
-  const templateId = data && data.template_id;
-  const relatedCustomerId = data && data.related_customer_id;
-
-  if (!to || !subject || !html) {
-    throw new ApiError(400, "to, subject, and html are required.");
-  }
+// Core send routine. Any hook in this app that needs to send a
+// transactional email calls this (NOT $http.send to Resend directly), so
+// there is exactly one place holding RESEND_API_KEY and exactly one place
+// writing email_events. Returns { ok, email_event_id, resend_email_id,
+// status, error } and never throws — callers decide whether a failed send
+// should fail their own request.
+function sendTransactionalEmail(app, options) {
+  const to = options && options.to;
+  const subject = options && options.subject;
+  const html = options && options.html;
+  const templateId = options && options.template_id;
+  const relatedCustomerId = options && options.related_customer_id;
 
   const apiKey = $os.getenv("RESEND_API_KEY");
   const fromAddress = $os.getenv("RESEND_FROM_ADDRESS") || "ops@synkra.example";
 
-  const eventsCollection = e.app.findCollectionByNameOrId("email_events");
+  const eventsCollection = app.findCollectionByNameOrId("email_events");
   const event = new Record(eventsCollection);
   event.set("direction", "outgoing");
   event.set("recipient", to);
@@ -35,9 +32,9 @@ routerAdd("POST", "/api/email/send", (e) => {
   if (!apiKey) {
     event.set("status", "failed");
     event.set("failure_reason", "RESEND_API_KEY not configured — integration boundary not connected.");
-    e.app.save(event);
-    recordIntegrationStatus(e.app, "resend", "not_configured");
-    throw new ApiError(501, "RESEND_API_KEY is not configured. No email was sent.");
+    app.save(event);
+    recordIntegrationStatus(app, "resend", "not_configured");
+    return { ok: false, status: 501, email_event_id: event.id, error: "RESEND_API_KEY is not configured. No email was sent." };
   }
 
   let res;
@@ -54,41 +51,71 @@ routerAdd("POST", "/api/email/send", (e) => {
   } catch (err) {
     event.set("status", "failed");
     event.set("failure_reason", "Could not reach Resend.");
-    e.app.save(event);
-    recordIntegrationStatus(e.app, "resend", "unavailable", "Could not reach Resend API.");
-    throw new ApiError(502, "Could not reach Resend. No email was sent.");
+    app.save(event);
+    recordIntegrationStatus(app, "resend", "unavailable", "Could not reach Resend API.");
+    return { ok: false, status: 502, email_event_id: event.id, error: "Could not reach Resend. No email was sent." };
   }
 
   if (res.statusCode >= 400) {
     event.set("status", "failed");
     event.set("failure_reason", `Resend responded with status ${res.statusCode}.`);
-    e.app.save(event);
+    app.save(event);
     recordIntegrationStatus(
-      e.app,
+      app,
       "resend",
       res.statusCode === 401 || res.statusCode === 403 ? "authentication_failed" : "error",
       `Resend status ${res.statusCode}`
     );
-    throw new ApiError(502, `Resend rejected the send (status ${res.statusCode}). No email was sent.`);
+    return { ok: false, status: 502, email_event_id: event.id, error: `Resend rejected the send (status ${res.statusCode}). No email was sent.` };
   }
 
   const resendId = res.json && res.json.id;
   event.set("resend_email_id", resendId || "");
   event.set("status", "sent");
   event.set("sent_at", new Date().toISOString());
-  e.app.save(event);
-  recordIntegrationStatus(e.app, "resend", "connected");
+  app.save(event);
+  recordIntegrationStatus(app, "resend", "connected");
+
+  return { ok: true, status: 200, email_event_id: event.id, resend_email_id: resendId };
+}
+
+// Sends a transactional email via Resend and records the attempt as an
+// email_events row regardless of outcome. Requires email.manage — sending
+// email on a customer's behalf is not a passive "view" action.
+routerAdd("POST", "/api/email/send", (e) => {
+  const employee = requirePermission(e, "email.manage");
+  const data = e.requestInfo().body;
+  const to = data && data.to;
+  const subject = data && data.subject;
+  const html = data && data.html;
+
+  if (!to || !subject || !html) {
+    throw new ApiError(400, "to, subject, and html are required.");
+  }
+
+  const relatedCustomerId = data && data.related_customer_id;
+  const result = sendTransactionalEmail(e.app, {
+    to,
+    subject,
+    html,
+    template_id: data && data.template_id,
+    related_customer_id: relatedCustomerId,
+  });
+  if (!result.ok) {
+    throw new ApiError(result.status, result.error);
+  }
 
   writeAuditLog(e.app, {
     actorEmployeeId: employee.id,
     action: "email.send",
     affectedCollection: "email_events",
-    affectedRecordId: event.id,
+    affectedRecordId: result.email_event_id,
     affectedCustomerId: relatedCustomerId || null,
   });
 
-  return e.json(200, { success: true, email_event_id: event.id, resend_email_id: resendId });
+  return e.json(200, { success: true, email_event_id: result.email_event_id, resend_email_id: result.resend_email_id });
 });
+
 
 function mapResendEventToStatus(resendEventType) {
   const map = {
