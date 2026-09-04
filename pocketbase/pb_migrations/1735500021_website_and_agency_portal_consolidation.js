@@ -211,7 +211,7 @@ migrate((app) => {
     indexes: ["CREATE INDEX idx_usage_credits_service ON agency_usage_credits (agency_client_service_id)"],
     listRule: `agency_client_service_id.agency_client_id.id = @request.auth.agency_client_id || ${adminOrPerm("agency.view")}`,
     viewRule: `agency_client_service_id.agency_client_id.id = @request.auth.agency_client_id || ${adminOrPerm("agency.view")}`,
-    createRule: `agency_client_service_id.agency_client_id.id = @request.auth.agency_client_id || ${adminOrPerm("agency.manage")}`, // client: purchased only, via Paystack webhook code; admin: manual grants
+    createRule: `agency_client_service_id.agency_client_id.id = @request.auth.agency_client_id || ${adminOrPerm("agency.manage")}`, // client: purchased only, via Paystack webhook code; admin: manual [...]
     updateRule: adminOrPerm("agency.manage"),
     deleteRule: adminOrPerm("agency.manage"),
   });
@@ -362,35 +362,6 @@ migrate((app) => {
     deleteRule: adminOrPerm("website.manage"),
   });
   app.save(services);
-
-  const portfolioItems = new Collection({
-    type: "base",
-    name: "portfolio_items",
-    fields: [
-      { name: "slug", type: "text", required: true, max: 150 },
-      { name: "title", type: "text", required: true, max: 200 },
-      { name: "client_name", type: "text", max: 150 },
-      { name: "category", type: "text", max: 100 },
-      { name: "summary", type: "text", max: 500 },
-      { name: "challenge", type: "editor" },
-      { name: "solution", type: "editor" },
-      { name: "outcome", type: "editor" },
-      { name: "images", type: "file", maxSelect: 10 },
-      { name: "aspect_ratio", type: "text", max: 20 },
-      { name: "disclaimer", type: "text", max: 500 },
-      { name: "services", type: "json" },
-      { name: "status", type: "select", maxSelect: 1, values: ["draft", "published", "archived"] },
-      { name: "sort_order", type: "number" },
-      { name: "published_at", type: "date" },
-    ],
-    indexes: ["CREATE UNIQUE INDEX idx_portfolio_slug ON portfolio_items (slug)"],
-    listRule: `status = "published" || ${adminOrPerm("website.manage")}`,
-    viewRule: `status = "published" || ${adminOrPerm("website.manage")}`,
-    createRule: adminOrPerm("website.manage"),
-    updateRule: adminOrPerm("website.manage"),
-    deleteRule: adminOrPerm("website.manage"),
-  });
-  app.save(portfolioItems);
 
   const portfolioItems = new Collection({
     type: "base",
@@ -637,13 +608,13 @@ migrate((app) => {
 
   // Super Administrator gets every permission automatically — add the new
   // one(s) to that role's existing list rather than leaving it stale.
-  const superAdmin = app.findFirstRecordByFilter("roles", 
+  const superAdmin = app.findFirstRecordByFilter("roles", "");
   const newPermRecords = app.findRecordsByFilter(
     "permissions",
     newPerms.map(([key]) => `key = "${key}"`).join(" || ")
   );
   const existing = superAdmin.get("permissions") || [];
-  superAdmin.set("permissions", [...existing, ...newPermRecords.map((r) => r.id)]);
+  superAdmin.set("permissions", existing.concat(newPermRecords.map(function (r) { return r.id; })));
   app.save(superAdmin);
 }, (app) => {
   const names = [
@@ -660,4 +631,3 @@ migrate((app) => {
     if (c) app.delete(c);
   }
 });
-
