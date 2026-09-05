@@ -71,25 +71,65 @@ routerAdd("POST", "/api/ai-jobs/submit", (e) => {
 });
 
 // Called by the Python worker to report back a result. Authenticated with
-// a static bearer token (AI_WORKER_API_KEY) rather than an employee
-// session — the worker is a service, not a person. If unset, this route
-// is disabled entirely rather than silently accepting unauthenticated
-// writes.
+// a static bearer token rather than an employee session — the worker is a
+// service, not a person. Each internal AI employee has its OWN token
+// (Prompt 8: one credential per consumer, never shared):
+//
+//   AI_WORKER_API_KEY_CUSTOMER_SUPPORT -> internal_employees/customer_support
+//   AI_WORKER_API_KEY_FINANCE_BILLING  -> internal_employees/finance_billing
+//
+// The old shared AI_WORKER_API_KEY has been retired. If no token is
+// configured at all the route is disabled entirely rather than silently
+// accepting unauthenticated writes.
+const WORKER_TOKEN_ENV_BY_SLUG = {
+  customer_support: "AI_WORKER_API_KEY_CUSTOMER_SUPPORT",
+  finance_billing: "AI_WORKER_API_KEY_FINANCE_BILLING",
+};
+
+// ai_employees.function is a fixed select list ("customer_support",
+// "billing", "finance", ...) that does not contain "finance_billing", so
+// each worker slug declares which employee functions/names it owns.
+const WORKER_SLUG_ALIASES = {
+  customer_support: ["customer_support", "support", "customer_support_ai"],
+  finance_billing: ["finance_billing", "finance", "billing", "finance_billing_ai"],
+};
+
+// "Finance & Billing" -> "finance_billing". ai_employees has no slug
+// column, so identity comes from `function` (falling back to `name`).
+function slugifyEmployee(value) {
+  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+// Returns the employee slug the presented token belongs to.
 function requireWorkerAuth(e) {
-  const expected = $os.getenv("AI_WORKER_API_KEY");
-  if (!expected) {
-    throw new ApiError(501, "AI_WORKER_API_KEY is not configured — the Python AI worker integration boundary is not connected.");
-  }
   const provided = e.request.header.get("Authorization");
-  if (provided !== `Bearer ${expected}`) {
-    throw new ApiError(401, "Invalid or missing worker credentials.");
+  let configured = 0;
+
+  for (const slug of Object.keys(WORKER_TOKEN_ENV_BY_SLUG)) {
+    const value = $os.getenv(WORKER_TOKEN_ENV_BY_SLUG[slug]);
+    if (!value) continue;
+    configured++;
+    if (provided === `Bearer ${value}`) return slug;
   }
+
+  if (configured === 0) {
+    throw new ApiError(501, "No AI worker token is configured (AI_WORKER_API_KEY_CUSTOMER_SUPPORT / AI_WORKER_API_KEY_FINANCE_BILLING) — the Python AI worker integration boundary is not connected.");
+  }
+  throw new ApiError(401, "Invalid or missing worker credentials.");
 }
 
 routerAdd("POST", "/api/ai-jobs/{id}/result", (e) => {
-  requireWorkerAuth(e);
+  const workerSlug = requireWorkerAuth(e);
   const data = e.requestInfo().body;
   const job = findOrNotFound(e.app, "ai_jobs", e.request.pathValue("id"), "AI job");
+
+  // A per-employee token may only report results for its own employee's jobs.
+  const owner = tryFindFirst(e.app, "ai_employees", "id = {:id}", { id: job.get("ai_employee") });
+  const ownerSlug = owner ? slugifyEmployee(owner.get("function") || owner.get("name") || "") : "";
+  const owned = WORKER_SLUG_ALIASES[workerSlug] || [workerSlug];
+  if (ownerSlug && owned.indexOf(ownerSlug) === -1) {
+    throw new ApiError(403, "This worker token is scoped to a different AI employee.");
+  }
 
   const status = data && data.status; // "succeeded" | "failed" | "escalated"
   if (!["succeeded", "failed", "escalated"].includes(status)) {
