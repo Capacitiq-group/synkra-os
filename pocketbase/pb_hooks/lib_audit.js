@@ -1,7 +1,7 @@
 /// <reference path="../pb_data/types.d.ts" />
 /**
- * Global audit, authentication, and permission helpers for Synkra OS.
- * Prefixed with 00_ so PocketBase executes it before all other hook files.
+ * Shared audit, authentication, and permission module for Synkra OS hooks.
+ * Named lib_audit.js (without .pb.js) so PocketBase does NOT auto-execute it as a hook.
  */
 
 function ApiError(status, message, data) {
@@ -14,7 +14,6 @@ function ApiError(status, message, data) {
   if (status === 404) return new NotFoundError(this.message, this.data);
   return new ApiError(this.status, this.message, this.data);
 }
-globalThis.ApiError = ApiError;
 
 function writeAuditLog(app, entry) {
   try {
@@ -33,7 +32,6 @@ function writeAuditLog(app, entry) {
     console.log("audit_log write failed:", err);
   }
 }
-globalThis.writeAuditLog = writeAuditLog;
 
 function runAudited(app, mutate, auditEntry) {
   app.runInTransaction((txApp) => {
@@ -43,7 +41,6 @@ function runAudited(app, mutate, auditEntry) {
     }
   });
 }
-globalThis.runAudited = runAudited;
 
 function findOrNotFound(app, collectionName, id, label) {
   try {
@@ -52,7 +49,6 @@ function findOrNotFound(app, collectionName, id, label) {
     throw new ApiError(404, (label || "Record") + " not found: " + id);
   }
 }
-globalThis.findOrNotFound = findOrNotFound;
 
 function tryFindFirst(app, collectionName, filter, params) {
   try {
@@ -61,7 +57,6 @@ function tryFindFirst(app, collectionName, filter, params) {
     return null;
   }
 }
-globalThis.tryFindFirst = tryFindFirst;
 
 function resolveActiveEmployeeAndRole(app, authRecord) {
   if (!authRecord) return null;
@@ -93,7 +88,6 @@ function resolveActiveEmployeeAndRole(app, authRecord) {
 
   return { employee, role };
 }
-globalThis.resolveActiveEmployeeAndRole = resolveActiveEmployeeAndRole;
 
 function roleHasPermission(app, role, permissionName) {
   if (!role) return false;
@@ -120,14 +114,12 @@ function roleHasPermission(app, role, permissionName) {
   }
   return false;
 }
-globalThis.roleHasPermission = roleHasPermission;
 
 function employeeHasPermission(app, authRecord, permissionName) {
   const resolved = resolveActiveEmployeeAndRole(app, authRecord);
   if (!resolved) return false;
   return roleHasPermission(app, resolved.role, permissionName);
 }
-globalThis.employeeHasPermission = employeeHasPermission;
 
 function requirePermission(e, permissionName) {
   let authRecord = e.auth;
@@ -176,22 +168,33 @@ function requirePermission(e, permissionName) {
   }
   return resolved.employee;
 }
-globalThis.requirePermission = requirePermission;
 
-function recordIntegrationStatus(app, integrationKey, status, details) {
+function recordIntegrationStatus(app, integrationKey, status, errorMessage) {
   try {
-    const existing = tryFindFirst(app, "integration_status", "integration_key = {:key}", { key: integrationKey });
-    const col = app.findCollectionByNameOrId("integration_status");
-    const rec = existing || new Record(col);
-    rec.set("integration_key", integrationKey);
-    rec.set("status", status);
-    rec.set("last_checked", new Date().toISOString().replace("T", " ").substring(0, 19) + "Z");
-    if (details) {
-      rec.set("details", typeof details === "string" ? details : JSON.stringify(details));
+    let rec = tryFindFirst(app, "integration_status", "integration_key = {:k}", { k: integrationKey });
+    if (!rec) {
+      const col = app.findCollectionByNameOrId("integration_status");
+      rec = new Record(col);
+      rec.set("integration_key", integrationKey);
     }
+    rec.set("status", status);
+    rec.set("last_checked_at", new Date().toISOString());
+    if (errorMessage !== undefined) rec.set("error_message", errorMessage || "");
     app.save(rec);
   } catch (err) {
-    console.log("recordIntegrationStatus failed for " + integrationKey + ":", err);
+    console.log("Failed to record integration status:", err);
   }
 }
-globalThis.recordIntegrationStatus = recordIntegrationStatus;
+
+module.exports = {
+  ApiError,
+  writeAuditLog,
+  runAudited,
+  findOrNotFound,
+  tryFindFirst,
+  resolveActiveEmployeeAndRole,
+  roleHasPermission,
+  employeeHasPermission,
+  requirePermission,
+  recordIntegrationStatus,
+};

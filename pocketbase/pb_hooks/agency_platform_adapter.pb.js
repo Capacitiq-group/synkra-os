@@ -1,5 +1,18 @@
 /// <reference path="../pb_data/types.d.ts" />
 
+const {
+  ApiError,
+  writeAuditLog,
+  runAudited,
+  findOrNotFound,
+  tryFindFirst,
+  resolveActiveEmployeeAndRole,
+  roleHasPermission,
+  employeeHasPermission,
+  requirePermission,
+  recordIntegrationStatus,
+} = require(`${__hooks}/lib_audit.js`);
+
 // AGENCY PLATFORM ADAPTER
 //
 // Per ARCHITECTURE.md: there is ONE dedicated Agency PocketBase instance,

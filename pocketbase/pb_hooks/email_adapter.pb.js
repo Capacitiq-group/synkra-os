@@ -1,5 +1,19 @@
 /// <reference path="../pb_data/types.d.ts" />
 
+const {
+  ApiError,
+  writeAuditLog,
+  runAudited,
+  findOrNotFound,
+  tryFindFirst,
+  resolveActiveEmployeeAndRole,
+  roleHasPermission,
+  employeeHasPermission,
+  requirePermission,
+  recordIntegrationStatus,
+} = require(`${__hooks}/lib_audit.js`);
+
+
 
 // RESEND EMAIL ADAPTER — the only file that talks to Resend directly.
 // Nothing else in the app should hold an API key or build a Resend

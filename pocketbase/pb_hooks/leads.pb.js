@@ -1,5 +1,19 @@
 /// <reference path="../pb_data/types.d.ts" />
 
+const {
+  ApiError,
+  writeAuditLog,
+  runAudited,
+  findOrNotFound,
+  tryFindFirst,
+  resolveActiveEmployeeAndRole,
+  roleHasPermission,
+  employeeHasPermission,
+  requirePermission,
+  recordIntegrationStatus,
+} = require(`${__hooks}/lib_audit.js`);
+
+
 
 onRecordUpdateRequest((e) => {
   const oldStatus = e.record.original().get("status");

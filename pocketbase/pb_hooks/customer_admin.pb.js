@@ -1,5 +1,19 @@
 /// <reference path="../pb_data/types.d.ts" />
 
+const {
+  ApiError,
+  writeAuditLog,
+  runAudited,
+  findOrNotFound,
+  tryFindFirst,
+  resolveActiveEmployeeAndRole,
+  roleHasPermission,
+  employeeHasPermission,
+  requirePermission,
+  recordIntegrationStatus,
+} = require(`${__hooks}/lib_audit.js`);
+
+
 
 // Dangerous customer actions go through dedicated routes rather than a
 // plain PATCH to /api/collections/customers/records/:id, so that:
