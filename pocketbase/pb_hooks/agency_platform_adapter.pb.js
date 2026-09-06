@@ -175,6 +175,7 @@ function withAgencyPlatformStatusTracking(e, fn) {
 
 
 routerAdd("GET", "/api/agency-platform/status", (e) => {
+  const { requirePermission, tryFindFirst } = require(`${__hooks}/lib_audit.js`);
   requirePermission(e, "agency.view");
   const row = tryFindFirst(e.app, "integration_status", "integration_key = 'agency_platform'", {});
   return e.json(200, row || { integration_key: "agency_platform", status: "not_configured" });
