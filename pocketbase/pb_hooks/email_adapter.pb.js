@@ -18,13 +18,18 @@ function sendTransactionalEmail(app, options) {
   const relatedCustomerId = options && options.related_customer_id;
 
   const apiKey = $os.getenv("RESEND_API_KEY");
+  // RESEND_FROM_ADDRESS may carry a display name ("Synkra <hello@x.co.za>").
+  // Resend accepts that form, but email_events.sender is an `email` field
+  // and rejects it — so store the bare address there.
   const fromAddress = $os.getenv("RESEND_FROM_ADDRESS") || "ops@synkra.example";
+  const fromMatch = String(fromAddress).match(/<([^>]+)>/);
+  const fromMailbox = (fromMatch ? fromMatch[1] : fromAddress).trim();
 
   const eventsCollection = app.findCollectionByNameOrId("email_events");
   const event = new Record(eventsCollection);
   event.set("direction", "outgoing");
   event.set("recipient", to);
-  event.set("sender", fromAddress);
+  event.set("sender", fromMailbox);
   event.set("subject", subject);
   if (templateId) event.set("template", templateId);
   if (relatedCustomerId) event.set("related_customer", relatedCustomerId);
