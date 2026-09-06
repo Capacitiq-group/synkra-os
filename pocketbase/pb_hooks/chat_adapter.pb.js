@@ -1,10 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-const {
-  requirePermission,
-  tryFindFirst,
-  recordIntegrationStatus,
-} = require(`${__hooks}/lib_audit.js`);
 
 // CHAT INTEGRATION ADAPTER
 //

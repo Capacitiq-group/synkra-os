@@ -1,11 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-const {
-  ApiError,
-  requirePermission,
-  runAudited,
-  findOrNotFound,
-} = require(`${__hooks}/lib_audit.js`);
 
 routerAdd("POST", "/api/payments/{id}/refund", (e) => {
   const employee = requirePermission(e, "billing.refund");

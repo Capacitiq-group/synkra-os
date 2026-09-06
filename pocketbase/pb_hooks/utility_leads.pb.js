@@ -1,9 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-const {
-  ApiError,
-  tryFindFirst,
-} = require(`${__hooks}/lib_audit.js`);
 
 // Public endpoint — utilities must stay usable without an account. This is
 // the ONLY way a utility_leads row is created; the collection itself has

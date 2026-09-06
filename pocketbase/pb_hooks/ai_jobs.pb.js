@@ -1,12 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-const {
-  ApiError,
-  requirePermission,
-  runAudited,
-  findOrNotFound,
-  tryFindFirst,
-} = require(`${__hooks}/lib_audit.js`);
 
 // Actions no AI employee may ever be granted, regardless of what its
 // permitted_actions field says. This is enforced here in code — a

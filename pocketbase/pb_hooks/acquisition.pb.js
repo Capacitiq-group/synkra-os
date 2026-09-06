@@ -1,12 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-const {
-  ApiError,
-  writeAuditLog,
-  findOrNotFound,
-  tryFindFirst,
-  requirePermission,
-} = require(`${__hooks}/lib_audit.js`);
 
 // ACQUISITION ENGINE INGESTION CONTRACT
 //

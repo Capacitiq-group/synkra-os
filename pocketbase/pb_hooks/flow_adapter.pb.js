@@ -49,12 +49,6 @@
 // adapter never fabricates a "% of limit used" number — it surfaces raw
 // usage counters only, until synkra-core ships GET /admin/plans.
 
-const {
-  ApiError,
-  tryFindFirst,
-  recordIntegrationStatus,
-  requirePermission,
-} = require(`${__hooks}/lib_audit.js`);
 
 function flowConfigured() {
   return !!$os.getenv("FLOW_API_BASE");

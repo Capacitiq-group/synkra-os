@@ -28,19 +28,34 @@ migrate((app) => {
   app.save(clients);
 
   // 2. Re-point credit_transactions.client_id relation to `clients`
-  const oldClientIdField = creditTransactions.fields.getByName("client_id");
-  if (oldClientIdField) {
-    creditTransactions.fields.removeById(oldClientIdField.id);
+  try {
+    const oldClientIdField = creditTransactions.fields.getByName("client_id");
+    if (oldClientIdField && oldClientIdField.collectionId !== clients.id) {
+      creditTransactions.fields.removeById(oldClientIdField.id);
+      app.save(creditTransactions);
+      creditTransactions.fields.add(new Field({
+        name: "client_id",
+        type: "relation",
+        required: true,
+        collectionId: clients.id,
+        maxSelect: 1,
+        cascadeDelete: true,
+      }));
+      app.save(creditTransactions);
+    } else if (!oldClientIdField) {
+      creditTransactions.fields.add(new Field({
+        name: "client_id",
+        type: "relation",
+        required: true,
+        collectionId: clients.id,
+        maxSelect: 1,
+        cascadeDelete: true,
+      }));
+      app.save(creditTransactions);
+    }
+  } catch (err) {
+    console.log("Warning: credit_transactions.client_id relation update:", err);
   }
-  creditTransactions.fields.add(new Field({
-    name: "client_id",
-    type: "relation",
-    required: true,
-    collectionId: clients.id,
-    maxSelect: 1,
-    cascadeDelete: true,
-  }));
-  app.save(creditTransactions);
 
   // 3. Reduce testimonial_clients to marketing-only fields:
   // Keep: company_name, logo, testimonial, testimonial_published

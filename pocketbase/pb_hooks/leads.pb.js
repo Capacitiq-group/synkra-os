@@ -1,12 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-const {
-  ApiError,
-  requirePermission,
-  writeAuditLog,
-  runAudited,
-  findOrNotFound,
-} = require(`${__hooks}/lib_audit.js`);
 
 onRecordUpdateRequest((e) => {
   const oldStatus = e.record.original().get("status");

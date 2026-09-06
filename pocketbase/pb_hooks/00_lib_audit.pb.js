@@ -1,0 +1,167 @@
+/// <reference path="../pb_data/types.d.ts" />
+/**
+ * Global audit, authentication, and permission helpers for Synkra OS.
+ * Prefixed with 00_ so PocketBase executes it before all other hook files.
+ */
+
+function ApiError(status, message, data) {
+  this.status = status || 500;
+  this.message = message || "Internal error";
+  this.data = data || {};
+  if (status === 400) return new BadRequestError(this.message, this.data);
+  if (status === 401) return new UnauthorizedError(this.message, this.data);
+  if (status === 403) return new ForbiddenError(this.message, this.data);
+  if (status === 404) return new NotFoundError(this.message, this.data);
+  return new ApiError(this.status, this.message, this.data);
+}
+globalThis.ApiError = ApiError;
+
+function writeAuditLog(app, entry) {
+  try {
+    const col = app.findCollectionByNameOrId("audit_logs");
+    const rec = new Record(col);
+    rec.set("actor_employee", entry.actorEmployeeId || null);
+    rec.set("action", entry.action);
+    rec.set("affected_collection", entry.affectedCollection || "");
+    rec.set("affected_record_id", entry.affectedRecordId || "");
+    rec.set("affected_customer", entry.affectedCustomerId || null);
+    rec.set("reason", entry.reason || "");
+    rec.set("previous_value", entry.previousValue ? JSON.stringify(entry.previousValue) : null);
+    rec.set("new_value", entry.newValue ? JSON.stringify(entry.newValue) : null);
+    app.save(rec);
+  } catch (err) {
+    console.log("audit_log write failed:", err);
+  }
+}
+globalThis.writeAuditLog = writeAuditLog;
+
+function runAudited(app, mutate, auditEntry) {
+  app.runInTransaction((txApp) => {
+    mutate(txApp);
+    if (auditEntry) {
+      writeAuditLog(txApp, auditEntry);
+    }
+  });
+}
+globalThis.runAudited = runAudited;
+
+function findOrNotFound(app, collectionName, id, label) {
+  try {
+    return app.findRecordById(collectionName, id);
+  } catch (err) {
+    throw new ApiError(404, (label || "Record") + " not found: " + id);
+  }
+}
+globalThis.findOrNotFound = findOrNotFound;
+
+function tryFindFirst(app, collectionName, filter, params) {
+  try {
+    return app.findFirstRecordByFilter(collectionName, filter, params || {});
+  } catch (err) {
+    return null;
+  }
+}
+globalThis.tryFindFirst = tryFindFirst;
+
+function resolveActiveEmployeeAndRole(app, authRecord) {
+  if (!authRecord) return null;
+
+  let employee = null;
+  const directEmployeeId = authRecord.get("employee");
+  if (directEmployeeId) {
+    try {
+      employee = app.findRecordById("employees", directEmployeeId);
+    } catch (err) {}
+  }
+  if (!employee && authRecord.collection().name === "employees") {
+    employee = authRecord;
+  }
+  if (!employee && authRecord.get("email")) {
+    employee = tryFindFirst(app, "employees", "email = {:email}", { email: authRecord.get("email") });
+  }
+
+  if (!employee) return null;
+  if (employee.get("status") !== "active") return null;
+
+  let role = null;
+  const roleId = employee.get("role");
+  if (roleId) {
+    try {
+      role = app.findRecordById("roles", roleId);
+    } catch (err) {}
+  }
+
+  return { employee, role };
+}
+globalThis.resolveActiveEmployeeAndRole = resolveActiveEmployeeAndRole;
+
+function roleHasPermission(role, permissionName) {
+  if (!role) return false;
+  const raw = role.get("permissions");
+  let list = [];
+  if (Array.isArray(raw)) list = raw;
+  else if (typeof raw === "string") {
+    try { list = JSON.parse(raw); } catch (e) { list = [raw]; }
+  }
+  return list.includes("*") || list.includes(permissionName);
+}
+globalThis.roleHasPermission = roleHasPermission;
+
+function employeeHasPermission(app, authRecord, permissionName) {
+  const resolved = resolveActiveEmployeeAndRole(app, authRecord);
+  if (!resolved) return false;
+  return roleHasPermission(resolved.role, permissionName);
+}
+globalThis.employeeHasPermission = employeeHasPermission;
+
+function requirePermission(e, permissionName) {
+  let authRecord = e.auth;
+
+  if (!authRecord && e.request) {
+    try {
+      const authHeader = e.request.header.get("Authorization") || "";
+      const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+      if (token) {
+        try {
+          authRecord = e.app.findAuthRecordByToken(token, "auth");
+        } catch (tokErr) {
+          try {
+            authRecord = e.app.findAuthRecordByToken(token, "users");
+          } catch (uErr) {}
+        }
+      }
+    } catch (headErr) {}
+  }
+
+  if (!authRecord) {
+    throw new ApiError(401, "Authentication required.");
+  }
+
+  const resolved = resolveActiveEmployeeAndRole(e.app, authRecord);
+  if (!resolved) {
+    throw new ApiError(403, "Active employee record required.");
+  }
+  if (!roleHasPermission(resolved.role, permissionName)) {
+    throw new ApiError(403, "Missing permission: " + permissionName);
+  }
+  return resolved.employee;
+}
+globalThis.requirePermission = requirePermission;
+
+function recordIntegrationStatus(app, integrationKey, status, details) {
+  try {
+    const existing = tryFindFirst(app, "integration_status", "integration_key = {:key}", { key: integrationKey });
+    const col = app.findCollectionByNameOrId("integration_status");
+    const rec = existing || new Record(col);
+    rec.set("integration_key", integrationKey);
+    rec.set("status", status);
+    rec.set("last_checked", new Date().toISOString().replace("T", " ").substring(0, 19) + "Z");
+    if (details) {
+      rec.set("details", typeof details === "string" ? details : JSON.stringify(details));
+    }
+    app.save(rec);
+  } catch (err) {
+    console.log("recordIntegrationStatus failed for " + integrationKey + ":", err);
+  }
+}
+globalThis.recordIntegrationStatus = recordIntegrationStatus;

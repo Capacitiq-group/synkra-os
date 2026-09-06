@@ -1,9 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-const {
-  ApiError,
-  employeeHasPermission,
-} = require(`${__hooks}/lib_audit.js`);
 
 // Synkra OS's own liveness/readiness — what Coolify/Docker health checks
 // hit. Kept unauthenticated and cheap on purpose.

@@ -35,13 +35,6 @@
 // monthly_price/setup_price left null rather than guessed — that's
 // intentional, not an oversight.
 
-const {
-  ApiError,
-  writeAuditLog,
-  tryFindFirst,
-  recordIntegrationStatus,
-  requirePermission,
-} = require(`${__hooks}/lib_audit.js`);
 
 function agencyPlatformConfigured() {
   // Local mode is always "configured" — the data lives in this instance.
