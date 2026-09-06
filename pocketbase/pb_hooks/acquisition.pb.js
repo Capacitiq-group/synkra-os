@@ -1,5 +1,13 @@
 /// <reference path="../pb_data/types.d.ts" />
 
+const {
+  ApiError,
+  writeAuditLog,
+  findOrNotFound,
+  tryFindFirst,
+  requirePermission,
+} = require(`${__hooks}/lib_audit.js`);
+
 // ACQUISITION ENGINE INGESTION CONTRACT
 //
 // Per the spec's architecture, Python bots + AI research agents are a

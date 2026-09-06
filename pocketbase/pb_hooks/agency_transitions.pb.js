@@ -1,5 +1,11 @@
 /// <reference path="../pb_data/types.d.ts" />
 
+const {
+  ApiError,
+  writeAuditLog,
+  findOrNotFound,
+} = require(`${__hooks}/lib_audit.js`);
+
 // Full agency lifecycle order, used to detect "is this transition moving
 // forward past X" without hardcoding pairwise transitions.
 const STAGE_ORDER = [

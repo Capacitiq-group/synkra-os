@@ -1,5 +1,12 @@
 /// <reference path="../pb_data/types.d.ts" />
 
+const {
+  ApiError,
+  requirePermission,
+  runAudited,
+  findOrNotFound,
+} = require(`${__hooks}/lib_audit.js`);
+
 const IMPERSONATION_MAX_MINUTES = 30;
 
 routerAdd("POST", "/api/impersonation/start", (e) => {

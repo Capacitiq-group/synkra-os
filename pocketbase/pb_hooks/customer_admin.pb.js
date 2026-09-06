@@ -1,5 +1,12 @@
 /// <reference path="../pb_data/types.d.ts" />
 
+const {
+  ApiError,
+  requirePermission,
+  runAudited,
+  findOrNotFound,
+} = require(`${__hooks}/lib_audit.js`);
+
 // Dangerous customer actions go through dedicated routes rather than a
 // plain PATCH to /api/collections/customers/records/:id, so that:
 //   1. the permission check is explicit and specific (not just "can edit"),

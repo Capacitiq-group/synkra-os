@@ -1,5 +1,12 @@
 /// <reference path="../pb_data/types.d.ts" />
 
+const {
+  ApiError,
+  requirePermission,
+  tryFindFirst,
+  recordIntegrationStatus,
+} = require(`${__hooks}/lib_audit.js`);
+
 // COOLIFY INFRASTRUCTURE ADAPTER
 //
 // Grounded in Coolify's real API (confirmed via docs.coolify.io and the
