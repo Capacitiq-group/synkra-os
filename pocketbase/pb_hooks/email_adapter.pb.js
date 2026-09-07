@@ -86,6 +86,7 @@ function sendTransactionalEmail(app, options) {
 
   return { ok: true, status: 200, email_event_id: event.id, resend_email_id: resendId };
 }
+globalThis.sendTransactionalEmail = sendTransactionalEmail;
 
 // Sends a transactional email via Resend and records the attempt as an
 // email_events row regardless of outcome. Requires email.manage — sending
@@ -188,3 +189,4 @@ routerAdd("POST", "/api/email/webhook/resend", (e) => {
 
   return e.json(200, { success: true });
 });
+      
