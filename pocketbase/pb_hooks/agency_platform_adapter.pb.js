@@ -1,17 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-const {
-  ApiError,
-  writeAuditLog,
-  runAudited,
-  findOrNotFound,
-  tryFindFirst,
-  resolveActiveEmployeeAndRole,
-  roleHasPermission,
-  employeeHasPermission,
-  requirePermission,
-  recordIntegrationStatus,
-} = require(`${__hooks}/lib_audit.js`);
 
 // AGENCY PLATFORM ADAPTER
 //
@@ -175,8 +163,7 @@ function withAgencyPlatformStatusTracking(e, fn) {
 
 
 routerAdd("GET", "/api/agency-platform/status", (e) => {
-  const { requirePermission, tryFindFirst } = require(`${__hooks}/lib_audit.js`);
-  requirePermission(e, "agency.view");
+    requirePermission(e, "agency.view");
   const row = tryFindFirst(e.app, "integration_status", "integration_key = 'agency_platform'", {});
   return e.json(200, row || { integration_key: "agency_platform", status: "not_configured" });
 });

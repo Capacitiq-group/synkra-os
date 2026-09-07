@@ -1,17 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-const {
-  ApiError,
-  writeAuditLog,
-  runAudited,
-  findOrNotFound,
-  tryFindFirst,
-  resolveActiveEmployeeAndRole,
-  roleHasPermission,
-  employeeHasPermission,
-  requirePermission,
-  recordIntegrationStatus,
-} = require(`${__hooks}/lib_audit.js`);
 
 
 // Bridges Website's form_submissions into the canonical leads pipeline.
