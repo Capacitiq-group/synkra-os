@@ -41,7 +41,7 @@ routerAdd("GET", "/api/search", (e) => {
   const results = [];
 
   function pushMatches(collectionName, filter, params, mapFn, requiredPermission) {
-    if (requiredPermission && !employeeHasPermission(e, requiredPermission)) return;
+    if (requiredPermission && !employeeHasPermission(e.app, e.auth, requiredPermission)) return;
     try {
       const records = e.app.findRecordsByFilter(collectionName, filter, "-created", 5, 0, params);
       for (const r of records) results.push(mapFn(r));
