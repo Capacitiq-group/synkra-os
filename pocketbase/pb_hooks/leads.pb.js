@@ -1,9 +1,8 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-
-
-
 onRecordUpdateRequest((e) => {
+  const shared = require(`${__hooks}/shared.js`);
+
   const oldStatus = e.record.original().get("status");
   const newStatus = e.record.get("status");
 
@@ -13,7 +12,7 @@ onRecordUpdateRequest((e) => {
     const authRecord = e.auth;
     const employeeId = authRecord ? authRecord.get("employee") : null;
     if (employeeId) {
-      writeAuditLog(e.app, {
+      shared.writeAuditLog(e.app, {
         actorEmployeeId: employeeId,
         action: "lead.status_change",
         affectedCollection: "leads",
@@ -44,17 +43,19 @@ onRecordUpdateRequest((e) => {
 // moment they act on it; there is no background sequence emailing leads
 // on its own.
 routerAdd("POST", "/api/follow-ups/{id}/complete-with-email", (e) => {
-  const employee = requirePermission(e, "followups.manage");
+  const shared = require(`${__hooks}/shared.js`);
+
+  const employee = shared.requirePermission(e, "followups.manage");
   const data = e.requestInfo().body;
   const emailEventId = data && data.email_event_id;
   if (!emailEventId) {
-    throw new ApiError(400, "email_event_id is required — send the email via /api/email/send first, then complete the follow-up with its resulting email_event_id.");
+    throw new shared.ApiError(400, "email_event_id is required — send the email via /api/email/send first, then complete the follow-up with its resulting email_event_id.");
   }
 
-  const followUp = findOrNotFound(e.app, "follow_ups", e.request.pathValue("id"), "Follow-up");
-  findOrNotFound(e.app, "email_events", emailEventId, "Email event"); // validates it actually exists
+  const followUp = shared.findOrNotFound(e.app, "follow_ups", e.request.pathValue("id"), "Follow-up");
+  shared.findOrNotFound(e.app, "email_events", emailEventId, "Email event"); // validates it actually exists
 
-  runAudited(
+  shared.runAudited(
     e.app,
     (txApp) => {
       followUp.set("status", "completed");
