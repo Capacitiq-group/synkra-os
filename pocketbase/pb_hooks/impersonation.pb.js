@@ -1,18 +1,16 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-
-
-
-const IMPERSONATION_MAX_MINUTES = 30;
-
 routerAdd("POST", "/api/impersonation/start", (e) => {
-  const employee = requirePermission(e, "customers.impersonate");
+  const shared = require(`${__hooks}/shared.js`);
+  const IMPERSONATION_MAX_MINUTES = 30;
+
+  const employee = shared.requirePermission(e, "customers.impersonate");
   const data = e.requestInfo().body;
   const customerId = data && data.customer_id;
   const reason = (data && data.reason) || "";
 
-  if (!customerId) throw new ApiError(400, "customer_id is required.");
-  if (!reason) throw new ApiError(400, "A reason is required to start a support session.");
+  if (!customerId) throw new shared.ApiError(400, "customer_id is required.");
+  if (!reason) throw new shared.ApiError(400, "A reason is required to start a support session.");
 
   // Only one active impersonation session per employee at a time.
   // findFirstRecordByFilter THROWS (does not return null/undefined) when
@@ -29,10 +27,10 @@ routerAdd("POST", "/api/impersonation/start", (e) => {
     existing = null;
   }
   if (existing) {
-    throw new ApiError(409, "You already have an active support session. End it before starting another.");
+    throw new shared.ApiError(409, "You already have an active support session. End it before starting another.");
   }
 
-  const customer = findOrNotFound(e.app, "customers", customerId, "Customer");
+  const customer = shared.findOrNotFound(e.app, "customers", customerId, "Customer");
 
   const startedAt = new Date();
   const expiresAt = new Date(startedAt.getTime() + IMPERSONATION_MAX_MINUTES * 60 * 1000);
@@ -46,7 +44,7 @@ routerAdd("POST", "/api/impersonation/start", (e) => {
   session.set("expires_at", expiresAt.toISOString());
   session.set("status", "active");
 
-  runAudited(
+  shared.runAudited(
     e.app,
     (txApp) => {
       txApp.save(session);
@@ -76,19 +74,21 @@ routerAdd("POST", "/api/impersonation/start", (e) => {
 });
 
 routerAdd("POST", "/api/impersonation/{id}/end", (e) => {
+  const shared = require(`${__hooks}/shared.js`);
+
   const authRecord = e.auth;
-  if (!authRecord) throw new ApiError(401, "Authentication required.");
+  if (!authRecord) throw new shared.ApiError(401, "Authentication required.");
   const employeeId = authRecord.get("employee");
 
-  const session = findOrNotFound(e.app, "impersonation_sessions", e.request.pathValue("id"), "Session");
+  const session = shared.findOrNotFound(e.app, "impersonation_sessions", e.request.pathValue("id"), "Session");
   if (session.get("employee") !== employeeId) {
-    throw new ApiError(403, "This is not your support session.");
+    throw new shared.ApiError(403, "This is not your support session.");
   }
   if (session.get("status") !== "active") {
     return e.json(200, { success: true, status: session.get("status") });
   }
 
-  runAudited(
+  shared.runAudited(
     e.app,
     (txApp) => {
       session.set("status", "ended_manually");
@@ -111,6 +111,8 @@ routerAdd("POST", "/api/impersonation/{id}/end", (e) => {
 // operator never clicks "end session" (closed laptop, crashed tab, etc.).
 // Runs every minute — cheap query, and this is a security control so it
 // must not depend on client behaviour.
+// (Untouched by the handler-scope fix — this callback only ever used true
+// globals ($app), never an outer-scope function, so it already worked.)
 cronAdd("expire_impersonation_sessions", "* * * * *", () => {
   const nowIso = new Date().toISOString();
   const expired = $app.findRecordsByFilter(
