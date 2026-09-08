@@ -77,7 +77,17 @@ function syncCoolifyOnce(app) {
         const healthCollection = app.findCollectionByNameOrId("health_checks");
         const check = new Record(healthCollection);
         check.set("target", resource.name || resource.uuid);
-        check.set("status", ["running", "healthy"].includes(resource.status) ? "pass" : "fail");
+        // Coolify reports resource status as "state:health", e.g.
+        // "running:healthy", "running:unknown" (no healthcheck configured
+        // for that resource), or "exited:unhealthy". A bare .includes()
+        // check against ["running","healthy"] can never match a compound
+        // string like "running:healthy" — that's why every genuinely
+        // healthy, running resource was showing as "fail". Fail only when
+        // the resource isn't actually running, or is running but its own
+        // healthcheck explicitly reports unhealthy.
+        const [resourceState, resourceHealth] = String(resource.status || "").split(":");
+        const isPassing = resourceState === "running" && resourceHealth !== "unhealthy";
+        check.set("status", isPassing ? "pass" : "fail");
         check.set("checked_at", nowIso);
         check.set("detail", `type=${resource.type || "unknown"} coolify_status=${resource.status || "unknown"}`);
         app.save(check);
@@ -92,4 +102,3 @@ function syncCoolifyOnce(app) {
 }
 
 module.exports = { coolifyConfigured, coolifyRequest, syncCoolifyOnce };
-    
