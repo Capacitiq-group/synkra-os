@@ -1,8 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-
-
-
 // Synkra OS's own liveness/readiness — what Coolify/Docker health checks
 // hit. Kept unauthenticated and cheap on purpose.
 routerAdd("GET", "/health", (e) => {
@@ -29,8 +26,10 @@ routerAdd("GET", "/ready", (e) => {
 // directly — if you add a new entity type here, you MUST add the matching
 // permission check, or it silently becomes an access-control bypass.
 routerAdd("GET", "/api/search", (e) => {
+  const shared = require(`${__hooks}/shared.js`);
+
   const authRecord = e.auth;
-  if (!authRecord) throw new ApiError(401, "Authentication required.");
+  if (!authRecord) throw new shared.ApiError(401, "Authentication required.");
 
   const query = e.request.url.query().get("q");
   if (!query || query.trim().length < 2) {
@@ -41,7 +40,7 @@ routerAdd("GET", "/api/search", (e) => {
   const results = [];
 
   function pushMatches(collectionName, filter, params, mapFn, requiredPermission) {
-    if (requiredPermission && !employeeHasPermission(e.app, e.auth, requiredPermission)) return;
+    if (requiredPermission && !shared.employeeHasPermission(e.app, e.auth, requiredPermission)) return;
     try {
       const records = e.app.findRecordsByFilter(collectionName, filter, "-created", 5, 0, params);
       for (const r of records) results.push(mapFn(r));
