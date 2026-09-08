@@ -1,22 +1,21 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-
-
-
 routerAdd("POST", "/api/payments/{id}/refund", (e) => {
-  const employee = requirePermission(e, "billing.refund");
+  const shared = require(`${__hooks}/shared.js`);
+
+  const employee = shared.requirePermission(e, "billing.refund");
   const data = e.requestInfo().body;
   const reason = (data && data.reason) || "";
-  if (!reason) throw new ApiError(400, "A reason is required to issue a refund.");
+  if (!reason) throw new shared.ApiError(400, "A reason is required to issue a refund.");
 
-  const payment = findOrNotFound(e.app, "payments", e.request.pathValue("id"), "Payment");
+  const payment = shared.findOrNotFound(e.app, "payments", e.request.pathValue("id"), "Payment");
   if (payment.get("status") === "refunded") {
-    throw new ApiError(409, "This payment has already been refunded.");
+    throw new shared.ApiError(409, "This payment has already been refunded.");
   }
 
   const paystackSecret = $os.getenv("PAYSTACK_SECRET_KEY");
   if (!paystackSecret) {
-    throw new ApiError(501, "PAYSTACK_SECRET_KEY is not configured — the payment-provider integration boundary is not connected. No refund has been attempted or faked.");
+    throw new shared.ApiError(501, "PAYSTACK_SECRET_KEY is not configured — the payment-provider integration boundary is not connected. No refund has been attempted or faked.");
   }
 
   // Real call to the provider happens BEFORE any local state changes, and
@@ -34,16 +33,16 @@ routerAdd("POST", "/api/payments/{id}/refund", (e) => {
       body: JSON.stringify({ transaction: payment.get("provider_reference") }),
     });
   } catch (err) {
-    throw new ApiError(502, "Could not reach the payment provider. No changes were made.");
+    throw new shared.ApiError(502, "Could not reach the payment provider. No changes were made.");
   }
 
   if (res.statusCode >= 400) {
-    throw new ApiError(502, `Refund failed at payment provider (status ${res.statusCode}). No changes were made.`);
+    throw new shared.ApiError(502, `Refund failed at payment provider (status ${res.statusCode}). No changes were made.`);
   }
 
   const previousStatus = payment.get("status");
 
-  runAudited(
+  shared.runAudited(
     e.app,
     (txApp) => {
       payment.set("status", "refunded");
