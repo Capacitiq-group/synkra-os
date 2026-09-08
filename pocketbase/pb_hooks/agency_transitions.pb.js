@@ -1,36 +1,37 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-
-
-
-// Full agency lifecycle order, used to detect "is this transition moving
-// forward past X" without hardcoding pairwise transitions.
-const STAGE_ORDER = [
-  "lead", "discovery", "qualification", "quotation", "invoiced", "paid",
-  "onboarding", "information_collection", "onboarding_complete",
-  "implementation", "ai_implementation", "internal_testing", "qa_qc",
-  "client_testing", "deployment", "handover", "retainer",
-];
-
-// Stages that come at/after onboarding — none of these may be entered
-// unless the linked invoice is paid.
-const POST_PAYMENT_STAGES = new Set(STAGE_ORDER.slice(STAGE_ORDER.indexOf("onboarding")));
-
-const QUOTATION_INDEX = STAGE_ORDER.indexOf("quotation");
-
-// Standard pricing ceiling: quotes above this amount are outside the
-// pricing rules the platform can safely auto-approve. This number is a
-// business decision Synkra needs to set (not something inferable from the
-// spec text alone) — configure it via AGENCY_STANDARD_PRICING_CEILING_CENTS.
-// Until set, this defaults to "no ceiling" (feature effectively off) rather
-// than guessing a number that doesn't reflect real Synkra pricing policy.
-function getPricingCeilingCents() {
-  const raw = $os.getenv("AGENCY_STANDARD_PRICING_CEILING_CENTS");
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
 onRecordUpdateRequest((e) => {
+  const shared = require(`${__hooks}/shared.js`);
+  const agencyLib = require(`${__hooks}/agency_platform_lib.js`);
+
+  // Full agency lifecycle order, used to detect "is this transition moving
+  // forward past X" without hardcoding pairwise transitions.
+  const STAGE_ORDER = [
+    "lead", "discovery", "qualification", "quotation", "invoiced", "paid",
+    "onboarding", "information_collection", "onboarding_complete",
+    "implementation", "ai_implementation", "internal_testing", "qa_qc",
+    "client_testing", "deployment", "handover", "retainer",
+  ];
+
+  // Stages that come at/after onboarding — none of these may be entered
+  // unless the linked invoice is paid.
+  const POST_PAYMENT_STAGES = new Set(STAGE_ORDER.slice(STAGE_ORDER.indexOf("onboarding")));
+
+  const QUOTATION_INDEX = STAGE_ORDER.indexOf("quotation");
+
+  // Standard pricing ceiling: quotes above this amount are outside the
+  // pricing rules the platform can safely auto-approve. This number is a
+  // business decision Synkra needs to set (not something inferable from
+  // the spec text alone) — configure it via
+  // AGENCY_STANDARD_PRICING_CEILING_CENTS. Until set, this defaults to "no
+  // ceiling" (feature effectively off) rather than guessing a number that
+  // doesn't reflect real Synkra pricing policy.
+  function getPricingCeilingCents() {
+    const raw = $os.getenv("AGENCY_STANDARD_PRICING_CEILING_CENTS");
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
   const oldStage = e.record.original().get("stage");
   const newStage = e.record.get("stage");
   const movingForward = STAGE_ORDER.indexOf(newStage) > STAGE_ORDER.indexOf(oldStage);
@@ -39,11 +40,11 @@ onRecordUpdateRequest((e) => {
   if (oldStage !== newStage && POST_PAYMENT_STAGES.has(newStage)) {
     const invoiceId = e.record.get("invoice");
     if (!invoiceId) {
-      throw new ApiError(422, "Cannot move into onboarding or later: no invoice is linked to this lead.");
+      throw new shared.ApiError(422, "Cannot move into onboarding or later: no invoice is linked to this lead.");
     }
-    const invoice = findOrNotFound(e.app, "invoices", invoiceId, "Invoice");
+    const invoice = shared.findOrNotFound(e.app, "invoices", invoiceId, "Invoice");
     if (invoice.get("status") !== "paid") {
-      throw new ApiError(422, `Cannot move into "${newStage}": linked invoice is "${invoice.get("status")}", not paid. This transition is blocked by policy (NO PAYMENT = NO ONBOARDING), not by a UI restriction — it cannot be bypassed from the client.`);
+      throw new shared.ApiError(422, `Cannot move into "${newStage}": linked invoice is "${invoice.get("status")}", not paid. This transition is blocked by policy (NO PAYMENT = NO ONBOARDING), not by a UI restriction — it cannot be bypassed from the client.`);
     }
   }
 
@@ -62,10 +63,10 @@ onRecordUpdateRequest((e) => {
       // e.record, which already has this request's (rejected) field
       // changes merged in and would persist the illegal stage change too
       // if saved directly.
-      const stored = findOrNotFound(e.app, "agency_leads", e.record.id, "Agency lead");
+      const stored = shared.findOrNotFound(e.app, "agency_leads", e.record.id, "Agency lead");
       stored.set("manual_review_required", true);
       e.app.save(stored);
-      throw new ApiError(
+      throw new shared.ApiError(
         422,
         `This quote ($${(quotedAmount / 100).toLocaleString()}) exceeds the standard pricing ceiling and requires manual review before proceeding. Set manual_review_cleared_by (and manual_review_notes) first — this cannot be bypassed by changing the stage directly.`
       );
@@ -78,7 +79,7 @@ onRecordUpdateRequest((e) => {
     const authRecord = e.auth;
     const employeeId = authRecord ? authRecord.get("employee") : null;
     if (employeeId) {
-      writeAuditLog(e.app, {
+      shared.writeAuditLog(e.app, {
         actorEmployeeId: employeeId,
         action: "agency_lead.stage_change",
         affectedCollection: "agency_leads",
@@ -93,13 +94,13 @@ onRecordUpdateRequest((e) => {
   // The moment this lead FIRST crosses into "onboarding" (payment already
   // confirmed by Gate 1 above), provision the real client record on the
   // dedicated Agency PocketBase instance — see
-  // pb_hooks/agency_platform_adapter.pb.js. Only fires once: guarded by
+  // pb_hooks/agency_platform_lib.js. Only fires once: guarded by
   // oldStage !== newStage && newStage === "onboarding", not by "any
   // post-payment stage", so re-saving the record later at qa_qc/deployment/
   // etc. doesn't attempt to re-provision.
   if (oldStage !== newStage && newStage === "onboarding") {
-    const stored = findOrNotFound(e.app, "agency_leads", e.record.id, "Agency lead");
-    const provisionResult = provisionAgencyPlatformClient(e.app, stored);
+    const stored = shared.findOrNotFound(e.app, "agency_leads", e.record.id, "Agency lead");
+    const provisionResult = agencyLib.provisionAgencyPlatformClient(e.app, stored);
     if (provisionResult.client_id) {
       stored.set("agency_platform_client_id", provisionResult.client_id);
       stored.set("agency_platform_service_id", provisionResult.service_id);
@@ -120,7 +121,7 @@ onRecordUpdateRequest((e) => {
     const authRecord = e.auth;
     const employeeId = authRecord ? authRecord.get("employee") : null;
     if (employeeId) {
-      writeAuditLog(e.app, {
+      shared.writeAuditLog(e.app, {
         actorEmployeeId: employeeId,
         action: "agency_lead.pricing_review_cleared",
         affectedCollection: "agency_leads",
