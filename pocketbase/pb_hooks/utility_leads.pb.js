@@ -1,13 +1,12 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-
-
-
 // Public endpoint — utilities must stay usable without an account. This is
 // the ONLY way a utility_leads row is created; the collection itself has
 // createRule: null so nothing can bypass the normalization/dedupe/consent
 // rules below.
 routerAdd("POST", "/api/utility-leads/capture", (e) => {
+  const shared = require(`${__hooks}/shared.js`);
+
   const data = e.requestInfo().body;
   const email = data && data.email;
   const utilitySlug = data && data.utility_slug;
@@ -16,15 +15,15 @@ routerAdd("POST", "/api/utility-leads/capture", (e) => {
   const marketingConsent = data && data.marketing_consent === true;
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new ApiError(400, "A valid email is required.");
+    throw new shared.ApiError(400, "A valid email is required.");
   }
 
   const emailNormalized = email.trim().toLowerCase();
   const utility = utilitySlug
-    ? tryFindFirst(e.app, "utilities", "slug = {:slug}", { slug: utilitySlug })
+    ? shared.tryFindFirst(e.app, "utilities", "slug = {:slug}", { slug: utilitySlug })
     : null;
 
-  let lead = tryFindFirst(
+  let lead = shared.tryFindFirst(
     e.app,
     "utility_leads",
     "email_normalized = {:email}",
@@ -56,12 +55,14 @@ routerAdd("POST", "/api/utility-leads/capture", (e) => {
 
 // Consent withdrawal must be just as easy as opting in.
 routerAdd("POST", "/api/utility-leads/withdraw-consent", (e) => {
+  const shared = require(`${__hooks}/shared.js`);
+
   const data = e.requestInfo().body;
   const email = data && data.email;
-  if (!email) throw new ApiError(400, "email is required.");
+  if (!email) throw new shared.ApiError(400, "email is required.");
 
   const emailNormalized = email.trim().toLowerCase();
-  const lead = tryFindFirst(
+  const lead = shared.tryFindFirst(
     e.app,
     "utility_leads",
     "email_normalized = {:email}",
@@ -80,12 +81,14 @@ routerAdd("POST", "/api/utility-leads/withdraw-consent", (e) => {
 
 // Anonymous usage events (no email) — separate concept from a lead.
 routerAdd("POST", "/api/utility-events/record", (e) => {
+  const shared = require(`${__hooks}/shared.js`);
+
   const data = e.requestInfo().body;
   const utilitySlug = data && data.utility_slug;
-  if (!utilitySlug) throw new ApiError(400, "utility_slug is required.");
+  if (!utilitySlug) throw new shared.ApiError(400, "utility_slug is required.");
 
-  const utility = tryFindFirst(e.app, "utilities", "slug = {:slug}", { slug: utilitySlug });
-  if (!utility) throw new ApiError(404, "Unknown utility.");
+  const utility = shared.tryFindFirst(e.app, "utilities", "slug = {:slug}", { slug: utilitySlug });
+  if (!utility) throw new shared.ApiError(404, "Unknown utility.");
 
   const collection = e.app.findCollectionByNameOrId("utility_events");
   const event = new Record(collection);
