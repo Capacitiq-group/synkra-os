@@ -18,6 +18,40 @@
 // Idempotent: checks fields.getByName() before adding, so this is safe to
 // re-run and won't error if a collection somehow already has one of these.
 migrate((app) => {
+  // Repair a pre-existing, unrelated bug this migration exposed.
+  // 1735500022 tried to re-point credit_transactions.client_id from
+  // testimonial_clients to clients by removing the field and re-adding
+  // it, in TWO separate app.save() calls, wrapped in a try/catch that
+  // silently swallows any error as a console warning rather than failing
+  // the migration. If that second save failed for any reason, the
+  // collection's metadata could still show client_id -> clients as if it
+  // succeeded, while the physical SQLite column was never actually
+  // recreated — which is exactly consistent with "no such column:
+  // client_id" surfacing only now, the first time anything (this
+  // migration's loop) called app.save() on this collection since.
+  //
+  // Rebuilt properly here: remove whatever client_id field currently
+  // exists (metadata-only removal has no destructive effect if the
+  // column is already missing), re-add it fresh, and set the index in
+  // the SAME save — one atomic schema change instead of the original's
+  // fragile two-step, silently-swallowed pattern.
+  const creditTransactions = app.findCollectionByNameOrId("credit_transactions");
+  const clients = app.findCollectionByNameOrId("clients");
+  const existingClientIdField = creditTransactions.fields.getByName("client_id");
+  if (existingClientIdField) {
+    creditTransactions.fields.removeById(existingClientIdField.id);
+  }
+  creditTransactions.fields.add(new Field({
+    name: "client_id",
+    type: "relation",
+    required: true,
+    collectionId: clients.id,
+    maxSelect: 1,
+    cascadeDelete: true,
+  }));
+  creditTransactions.indexes = ["CREATE INDEX idx_credit_txn_client ON credit_transactions (client_id)"];
+  app.save(creditTransactions);
+
   const collectionNames = [
     "permissions", "roles", "employees", "organisations", "products",
     "subscriptions", "invoices", "payments", "support_tickets",
