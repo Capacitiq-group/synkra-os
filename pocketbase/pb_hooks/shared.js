@@ -190,10 +190,14 @@ function recordIntegrationStatus(app, key, status, details) {
       rec.set("integration_key", key);
     }
     rec.set("status", status);
-    if (details !== undefined) {
-      rec.set("details", typeof details === "string" ? details : JSON.stringify(details));
+    const nowIso = new Date().toISOString();
+    rec.set("last_checked_at", nowIso);
+    if (status === "connected") {
+      rec.set("last_successful_at", nowIso);
+      rec.set("last_error", "");
+    } else if (details !== undefined) {
+      rec.set("last_error", typeof details === "string" ? details : JSON.stringify(details));
     }
-    rec.set("last_checked_at", new Date().toISOString());
     app.save(rec);
   } catch (err) {
     console.log("[recordIntegrationStatus] Failed to update integration status for " + key + ":", err);
@@ -212,4 +216,5 @@ module.exports = {
   requirePermission,
   recordIntegrationStatus,
 };
-      
+
+    
